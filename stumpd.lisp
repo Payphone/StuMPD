@@ -15,67 +15,79 @@
        (setf ,socket (initialize-connection "localhost" 6600))
        ,@body)))
 
+(defmacro define-mpd-command (name (&rest args) (&rest interactive-args)
+                              &body body)
+  "Defines a mpd command using the StumpWM defcommand wrapped with an
+  auto-reconnect."
+  `(defcommand ,name (,@args) (,@interactive-args)
+     (auto-reconnect *socket*
+       ,@body)))
+
 ;; Playback
 
-(defcommand set-volume (volume) ((:string "Volume (1-100): "))
-  "Sets the volume."
-  (auto-reconnect *socket*
-    (playback-set-volume *socket* volume)))
+(define-mpd-command set-volume (volume) ((:string "Volume (1-100): "))
+  (playback-set-volume *socket* volume))
 
-(defcommand pause/resume () ()
-  "Pauses the music."
-  (auto-reconnect *socket*
-    (let ((state (state (query-status *socket*))))
-      (if (string= state "pause")
-          (playback-pause *socket* nil)
-          (playback-pause *socket* t)))))
+(define-mpd-command pause/resume () ()
+  (let ((state (state (query-status *socket*))))
+    (if (string= state "pause")
+        (playback-pause *socket* nil)
+        (playback-pause *socket* t))))
 
-(defcommand play (&optional song-position) ((:string "Position: "))
-  "Plays at the song position if specified."
-  (auto-reconnect *socket*
-    (playback-play *socket* song-position)))
+(define-mpd-command play (&optional song-position) ((:string "Position: "))
+  (playback-play *socket* song-position))
 
-(defcommand previous-song () ()
-  "Plays the previous track."
-  (auto-reconnect *socket*
-    (playback-previous *socket*)))
+(define-mpd-command previous-song () ()
+  (playback-previous *socket*))
 
-(defcommand next-song () ()
-  "Plays the next track."
-  (auto-reconnect *socket*
-    (playback-next *socket*)))
+(define-mpd-command next-song () ()
+  (playback-next *socket*))
 
-(defcommand stop () ()
-  "Stops the playback."
-  (auto-reconnect *socket*
-    (playback-stop *socket*)))
+(define-mpd-command stop () ()
+  (playback-stop *socket*))
 
 ;; Playlist
 
-(defcommand add-song (song) ((:string "File: "))
-  "Adds the file to the playlist."
-  (auto-reconnect *socket*
-    (playlist-add-song *socket* song)))
+(define-mpd-command add-song (song) ((:string "File: "))
+  (playlist-add-song *socket* song))
 
-(defcommand clear-songs () ()
-  "Clears all the songs in the current playlist."
-  (auto-reconnect *socket*
-    (playlist-clear-songs *socket*)))
+(define-mpd-command clear-songs () ()
+  (playlist-clear-songs *socket*))
 
-(defcommand delete-song (song) ((:string "File: "))
-  "Removes the song from the playlist."
-  (auto-reconnect *socket*
-    (playlist-delete-song *socket* song)))
+(define-mpd-command delete-song (song) ((:string "File: "))
+  (playlist-delete-song *socket* song))
 
 ;; Queries
 
-(defcommand current-song () ()
-  "Shows the current song."
-  (auto-reconnect *socket*
-    (let ((song (query-song *socket*)))
-      (message "~A~%~A~%~A" (or (title song) "Unknown") (or (artist song) "")
-               (or (album song) "")))))
+(define-mpd-command current-song () ()
+  (let ((song (query-song *socket*)))
+    (message "~A~%~A~%~A" (or (title song) "Unknown") (or (artist song) "")
+             (or (album song) ""))
+    (or (title song) "Unknown")))
 
+;; Browsing
+(defclass file ()
+  ((last-modified :initarg :last-modified :accessor last-modified)
+   (size :initarg :size :accessor size)
+   (name :initarg :name :accessor name)))
+
+(defclass file-directory ()
+  ((last-modified :initarg :last-modified :accessor last-modified)
+   (name :initarg :name :accessor name)))
+
+(defun escape-spaces (string)
+  "Inserts a backslash before every space in a string."
+  (coerce (loop for char across string
+             if (char= char #\Space) collect #\\
+             collect char) 'string))
+
+(defun browse-directory (directory)
+  (database-list-files *socket*(format nil "\"~A\"" (escape-spaces directory))))
+#|
+(select-from-menu (current-screen) options title
+                  (or initial-selection 0)
+                  keymap)
+|#
 ;; Keybindings
 
 (defvar *mpd-playback-map*
