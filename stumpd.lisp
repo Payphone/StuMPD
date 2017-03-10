@@ -2,6 +2,22 @@
 
 (in-package #:stumpd)
 
+;; Utilities
+
+(defun escape-spaces (string)
+  "Inserts a backslash before every space in a string."
+  (coerce (loop for char across string
+             if (char= char #\Space) collect #\\
+             collect char) 'string))
+
+(defun 2cons (elt1 elt2 lst)
+  "Conses two elements to a list."
+  (cons elt2 (cons elt1 lst)))
+
+(defun quote-string (string)
+  "Encloses a string in double quotes."
+  (concatenate 'string "\"" string "\""))
+
 ;; Connection Settings
 
 (defvar *socket* (initialize-connection "localhost" 6600))
@@ -31,20 +47,23 @@
 (define-mpd-command pause/resume () ()
   (let ((state (state (query-status *socket*))))
     (if (string= state "pause")
-        (playback-pause *socket* nil)
-        (playback-pause *socket* t))))
+        (progn (playback-pause *socket* nil) (current-song))
+        (progn (playback-pause *socket* t) (message "Paused.")))))
 
 (define-mpd-command play (&optional song-position) ((:string "Position: "))
   (playback-play *socket* song-position))
 
 (define-mpd-command previous-song () ()
-  (playback-previous *socket*))
+  (playback-previous *socket*)
+  (current-song))
 
 (define-mpd-command next-song () ()
-  (playback-next *socket*))
+  (playback-next *socket*)
+  (current-song))
 
 (define-mpd-command stop () ()
-  (playback-stop *socket*))
+  (playback-stop *socket*)
+  (message "Stopped."))
 
 ;; Playlist
 
@@ -73,16 +92,30 @@
 
 (defclass file-directory ()
   ((last-modified :initarg :last-modified :accessor last-modified)
+   (size :initarg :size :accessor size)
    (name :initarg :name :accessor name)))
 
-(defun escape-spaces (string)
-  "Inserts a backslash before every space in a string."
-  (coerce (loop for char across string
-             if (char= char #\Space) collect #\\
-             collect char) 'string))
+(defun group-files (lst &optional build acc)
+  "Creates a list of parameter lists containing a file/directory."
+  (if lst
+      (let ((key (car lst))
+            (value (cadr lst)))
+        (if (or (eq key 'file) (eq key 'directory))
+            (group-files (cddr lst) nil
+                         (append (list (reverse (2cons key value build))) acc))
+            (group-files (cddr lst) (2cons key value build) acc)))
+      (reverse acc)))
 
 (defun browse-directory (directory)
-  (database-list-files *socket*(format nil "\"~A\"" (escape-spaces directory))))
+  (let ((files (group-files (database-list-files *socket*
+                              (quote-string (escape-spaces directory))))))
+    (loop for file in files
+       collect (make-instance (if (getf file 'file) 'file 'file-directory)
+                              :last-modified (getf file 'last-modified)
+                              :size (getf file 'size)
+                              :name (or (getf file 'file)
+                                        (getf file 'directory))))))
+
 #|
 (select-from-menu (current-screen) options title
                   (or initial-selection 0)
