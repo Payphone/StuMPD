@@ -68,7 +68,7 @@
 ;; Playlist
 
 (define-mpd-command add-song (song) ((:string "File: "))
-  (playlist-add-song *socket* song))
+  (playlist-add-song *socket* (quote-string song)))
 
 (define-mpd-command clear-songs () ()
   (playlist-clear-songs *socket*))
@@ -85,6 +85,7 @@
     (or (title song) "Unknown")))
 
 ;; Browsing
+
 (defclass file ()
   ((last-modified :initarg :last-modified :accessor last-modified)
    (size :initarg :size :accessor size)
@@ -109,13 +110,27 @@
 (defun browse-directory (directory)
   (let ((files (group-files (database-list-files *socket*
                               (quote-string (escape-spaces directory))))))
-    (loop for file in files
-       collect (make-instance (if (getf file 'file) 'file 'file-directory)
-                              :last-modified (getf file 'last-modified)
-                              :size (getf file 'size)
-                              :name (or (getf file 'file)
-                                        (getf file 'directory))))))
+    (select-from-menu (current-screen)
+      (loop for file in files
+         collect (cons (or (getf file 'file) (getf file 'directory))
+                       (make-instance (if (getf file 'file) 'file 'file-directory)
+                                      :last-modified (getf file 'last-modified)
+                                      :size (getf file 'size)
+                                      :name (or (getf file 'file)
+                                                (getf file 'directory)))))
+                      "Browse: ")))
 
+(define-mpd-command browse-menu-directory (&optional path) ((:string "Path: "))
+  (let* ((selection (browse-directory path))
+         (filename (car selection))
+         (file (cdr selection)))
+    (cond ((eql (type-of file) 'file-directory)
+           (browse-menu-directory
+            (concatenate 'string (if (string= path "") path
+                                     (concatenate 'string path "/")) filename)))
+          ((eql (type-of file) 'file)
+           (add-song (concatenate 'string path "/" filename)))
+          (t file))))
 #|
 (select-from-menu (current-screen) options title
                   (or initial-selection 0)
@@ -136,4 +151,5 @@
     (define-key map (kbd "c") "clear-songs")
     (define-key map (kbd "d") "delete-song")
     (define-key map (kbd "S") "current-song")
+    (define-key map (kbd "b") "browse-menu-directory")
     map))

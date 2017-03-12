@@ -8,5 +8,9 @@
                 #:message
                 #:define-key
                 #:kbd
-                #:*root-map*)
+                #:*root-map*
+                #:current-screen
+                #:select-from-menu
+                #:menu-state-selected
+                #:menu-state-table)
   (:export #:*mpd-playback-map*))
