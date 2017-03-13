@@ -101,7 +101,7 @@
   (if lst
       (let ((key (car lst))
             (value (cadr lst)))
-        (if (or (eq key 'file) (eq key 'directory))
+        (if (or (string= key 'file) (string= key 'directory))
             (group-files (cddr lst) nil
                          (append (list (reverse (2cons key value build))) acc))
             (group-files (cddr lst) (2cons key value build) acc)))
@@ -112,7 +112,8 @@
                               (quote-string (escape-spaces directory))))))
     (select-from-menu (current-screen)
       (loop for file in files
-         collect (cons (or (getf file 'file) (getf file 'directory))
+         collect (cons (or (getf file (intern "FILE"))
+                           (getf file (intern "DIRECTORY")))
                        (make-instance (if (getf file 'file) 'file 'file-directory)
                                       :last-modified (getf file 'last-modified)
                                       :size (getf file 'size)
@@ -129,13 +130,10 @@
             (concatenate 'string (if (string= path "") path
                                      (concatenate 'string path "/")) filename)))
           ((string= (type-of file) 'file)
-           (add-song (concatenate 'string path "/" filename)))
-          (t file))))
-#|
-(select-from-menu (current-screen) options title
-                  (or initial-selection 0)
-                  keymap)
-|#
+           (add-song (concatenate 'string path "/" filename))
+           (message "Added song to playlist."))
+          (t (message "Abort.")))))
+
 ;; Keybindings
 
 (defvar *mpd-playback-map*
