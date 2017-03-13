@@ -124,11 +124,11 @@
   (let* ((selection (browse-directory path))
          (filename (car selection))
          (file (cdr selection)))
-    (cond ((eql (type-of file) 'file-directory)
+    (cond ((string= (type-of file) 'file-directory)
            (browse-menu-directory
             (concatenate 'string (if (string= path "") path
                                      (concatenate 'string path "/")) filename)))
-          ((eql (type-of file) 'file)
+          ((string= (type-of file) 'file)
            (add-song (concatenate 'string path "/" filename)))
           (t file))))
 #|
