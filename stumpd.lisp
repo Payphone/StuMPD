@@ -112,14 +112,20 @@
                               (quote-string (escape-spaces directory))))))
     (select-from-menu (current-screen)
       (loop for file in files
-         collect (cons (or (getf file (intern "FILE"))
-                           (getf file (intern "DIRECTORY")))
-                       (make-instance (if (getf file 'file) 'file 'file-directory)
-                                      :last-modified (getf file 'last-modified)
-                                      :size (getf file 'size)
-                                      :name (or (getf file 'file)
-                                                (getf file 'directory)))))
-                      "Browse: ")))
+         collect
+           (let* ((type (if (getf file (intern "FILE"))
+                            (intern "FILE")
+                            (intern "FILE-DIRECTORY")))
+                  (name (if (string= type 'file)
+                            (getf file type)
+                            (getf file (intern "DIRECTORY"))))
+                 (last-modified (getf file (intern "LAST-MODIFIED")))
+                 (size (getf file (intern "SIZE"))))
+             (cons name (make-instance (if (string= type 'file) 'file 'file-directory)
+                                       :last-modified last-modified
+                                       :size size
+                                       :name name))))
+      "Browse: ")))
 
 (define-mpd-command browse-menu-directory (&optional path) ((:string "Path: "))
   (let* ((selection (browse-directory path))
