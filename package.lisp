@@ -13,4 +13,7 @@
                 #:select-from-menu
                 #:menu-state-selected
                 #:menu-state-table)
-  (:export #:*mpd-playback-map*))
+  (:export #:*mpd-playback-map*
+           #:file
+           #:file-directory
+           #:directory))
