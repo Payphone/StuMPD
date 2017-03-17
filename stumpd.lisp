@@ -14,10 +14,6 @@
   "Conses two elements to a list."
   (cons elt1 (cons elt2 lst)))
 
-(defun quote-string (string)
-  "Encloses a string in double quotes."
-  (concatenate 'string "\"" string "\""))
-
 ;; Connection Settings
 
 (defvar *socket* (initialize-connection "localhost" 6600))
@@ -45,7 +41,7 @@
   (playback-set-volume *socket* volume))
 
 (define-mpd-command pause/resume () ()
-  (if (string= (state (query-status *socket)) "pause")
+  (if (string= (state (query-status *socket*)) "pause")
       (progn (playback-pause *socket* nil) (message "Resumed."))
       (progn (playback-pause *socket* t) (message "Paused."))))
 
@@ -68,7 +64,7 @@
 ;; Playlist
 
 (define-mpd-command add-song (song) ((:string "File: "))
-  (playlist-add-song *socket* (quote-string song))
+  (playlist-add-song *socket* song)
   (message "Song added."))
 
 (define-mpd-command clear-songs () ()
@@ -112,7 +108,7 @@
 
 (defun browse-directory (directory)
   (let ((files (group-files (database-list-files *socket*
-                              (quote-string (escape-spaces directory))))))
+                                                 (escape-spaces directory)))))
     (select-from-menu (current-screen)
       (loop for file in files
          collect
@@ -126,7 +122,8 @@
                                        :name name))))
       "Browse: ")))
 
-(define-mpd-command browse-menu-directory (&optional path) ((:string "Path: "))
+(define-mpd-command browse-menu-directory (&optional path)
+    ((:string "Path (Optional): "))
   (let* ((selection (browse-directory path))
          (filename (car selection))
          (file (cdr selection)))
@@ -134,6 +131,13 @@
            (browse-menu-directory
             (concatenate 'string (if (string= path "") path
                                      (concatenate 'string path "/")) filename)))
+          ((or (string= (subseq (reverse filename) 0 3) (reverse "m3u"))
+               (string= (subseq (reverse filename) 0 3) (reverse "pls")))
+           (playlist-load *socket* (if (string= path "")
+                                       filename
+                                       (concatenate 'string (escape-spaces path)
+                                                    "/" filename)))
+           (message "Playlist loaded."))
           ((string= (type-of file) 'mpd-file)
            (add-song (concatenate 'string path "/" filename))
            (message "Added song to playlist."))
