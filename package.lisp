@@ -11,9 +11,8 @@
                 #:*root-map*
                 #:current-screen
                 #:select-from-menu
-                #:menu-state-selected
                 #:menu-state-table)
   (:export #:*mpd-playback-map*
-           #:file
-           #:file-directory
-           #:directory))
+           #:mpd-file
+           #:mpd-directory
+           #:mpd-playlist))

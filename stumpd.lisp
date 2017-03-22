@@ -2,21 +2,12 @@
 
 (in-package #:stumpd)
 
-;; Utilities
-
-(defun escape-spaces (string)
-  "Inserts a backslash before every space in a string."
-  (coerce (loop for char across string
-             if (char= char #\Space) collect #\\
-             collect char) 'string))
-
-(defun 2cons (elt1 elt2 lst)
-  "Conses two elements to a list."
-  (cons elt1 (cons elt2 lst)))
-
 ;; Connection Settings
 
 (defvar *socket* (initialize-connection "localhost" 6600))
+
+(defcommand reconnect () ()
+  (setf *socket* (initialize-connection "localhost" 6600)))
 
 (defmacro auto-reconnect (socket &body body)
   "Reconnects socket when it closes. MPD automatically closes clients after a
@@ -37,25 +28,26 @@
 
 ;; Playback
 
-(define-mpd-command set-volume (volume) ((:string "Volume (1-100): "))
-  (playback-set-volume *socket* volume))
+(define-mpd-command set-volume (volume) ((:number "Volume (1-100): "))
+  (playback-set-volume *socket* volume)
+  (message "Volume set."))
 
 (define-mpd-command pause/resume () ()
   (if (string= (state (query-status *socket*)) "pause")
       (progn (playback-pause *socket* nil) (message "Resumed."))
       (progn (playback-pause *socket* t) (message "Paused."))))
 
-(define-mpd-command play (&optional song-position)
-    ((:string "Position (Optional): "))
-  (playback-play *socket* song-position))
+(define-mpd-command play () ()
+  (playback-play *socket* "0")
+  (message "Playing."))
 
 (define-mpd-command previous-song () ()
   (playback-previous *socket*)
-  (current-song))
+  (message "Previous song."))
 
 (define-mpd-command next-song () ()
   (playback-next *socket*)
-  (current-song))
+  (message "Next song."))
 
 (define-mpd-command stop () ()
   (playback-stop *socket*)
@@ -63,17 +55,21 @@
 
 ;; Playlist
 
+(define-mpd-command load-playlist (playlist) ((:string "Playlist: "))
+  (playlist-load *socket* playlist)
+  (message "Loaded playlist."))
+
 (define-mpd-command add-song (song) ((:string "File: "))
   (playlist-add-song *socket* song)
-  (message "Song added."))
+  (message "Added song."))
 
 (define-mpd-command clear-songs () ()
   (playlist-clear-songs *socket*)
-  (message "Songs cleared."))
+  (message "Cleared playlist."))
 
 (define-mpd-command delete-song (song) ((:string "File: "))
   (playlist-delete-song *socket* song)
-  (message "Song deleted."))
+  (message "Deleted song."))
 
 ;; Queries
 
@@ -83,80 +79,57 @@
              (or (album song) ""))
     (or (title song) "Unknown")))
 
+;; Database
+
+(define-mpd-command update-database () ()
+  (database-update *socket* "")
+  (message "Starting database update."))
+
 ;; Browsing
 
 (defclass mpd-file ()
-  ((last-modified :initarg :last-modified :accessor last-modified)
-   (size :initarg :size :accessor size)
-   (name :initarg :name :accessor name)))
+  ((path :initarg :path :accessor path)))
 
-(defclass mpd-file-directory ()
-  ((last-modified :initarg :last-modified :accessor last-modified)
-   (size :initarg :size :accessor size)
-   (name :initarg :name :accessor name)))
+(defclass mpd-playlist ()
+  ((path :initarg :path :accessor path)))
 
-(defun group-files (lst &optional build acc)
-  "Creates a list of parameter lists containing a file/directory."
+(defclass mpd-directory ()
+  ((path :initarg :path :accessor path)))
+
+(defun group-files (lst &optional acc)
+  "Groups together files/directories/playlists in the format (path instance)"
   (if lst
       (let ((key (car lst))
             (value (cadr lst)))
-        (if (or (string= key 'file) (string= key 'directory))
-            (group-files (cddr lst) nil
-                         (append (list (2cons key value build)) acc))
-            (group-files (cddr lst) (2cons key value build) acc)))
+        (group-files (cddr lst)
+                     (cons (list value (make-instance
+                                          (intern (concatenate 'string "MPD-"
+                                                               (string key)))
+                                          :path value)) acc)))
       (reverse acc)))
 
-(defun browse-directory (directory)
-  (let ((files (group-files (database-list-files *socket*
-                                                 (escape-spaces directory)))))
-    (select-from-menu (current-screen)
-      (loop for file in files
-         collect
-           (let* ((filep (getf file 'file))
-                  (name (if filep (getf file 'file) (getf file 'directory)))
-                  (last-modified (getf file 'last-modified))
-                  (size (getf file 'size)))
-             (cons name (make-instance (if filep 'mpd-file 'mpd-file-directory)
-                                       :last-modified last-modified
-                                       :size size
-                                       :name name))))
-      "Browse: ")))
-
-(define-mpd-command browse-menu-directory (&optional path)
-    ((:string "Path (Optional): "))
-  (let* ((selection (browse-directory path))
-         (filename (car selection))
-         (file (cdr selection)))
-    (cond ((string= (type-of file) 'mpd-file-directory)
-           (browse-menu-directory
-            (concatenate 'string (if (string= path "") path
-                                     (concatenate 'string path "/")) filename)))
-          ((or (string= (subseq (reverse filename) 0 3) (reverse "m3u"))
-               (string= (subseq (reverse filename) 0 3) (reverse "pls")))
-           (playlist-load *socket* (if (string= path "")
-                                       filename
-                                       (concatenate 'string (escape-spaces path)
-                                                    "/" filename)))
-           (message "Playlist loaded."))
-          ((string= (type-of file) 'mpd-file)
-           (add-song (concatenate 'string path "/" filename))
-           (message "Added song to playlist."))
-          (t (message "Abort.")))))
+(define-mpd-command search-database () ()
+  (let* ((files (group-files (database-list-all *socket* "")))
+         (selection (second (select-from-menu (current-screen) files))))
+    (typecase selection
+      (mpd-file (add-song (path selection)))
+      (mpd-playlist (load-playlist (path selection)))
+      (mpd-directory (add-song (path selection)))
+      (t (message "Abort.")))))
 
 ;; Keybindings
 
 (defvar *mpd-playback-map*
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c") "reconnect")
+    (define-key map (kbd "u") "update-database")
     (define-key map (kbd "v") "set-volume")
     (define-key map (kbd "p") "pause/resume")
     (define-key map (kbd "P") "play")
     (define-key map (kbd "<") "previous-song")
     (define-key map (kbd ">") "next-song")
     (define-key map (kbd "s") "stop")
-    (define-key map (kbd "a") "add-song")
     (define-key map (kbd "c") "clear-songs")
-    (define-key map (kbd "d") "delete-song")
     (define-key map (kbd "S") "current-song")
-    (define-key map (kbd "b") "browse-menu-directory")
+    (define-key map (kbd "b") "search-database")
     map))
