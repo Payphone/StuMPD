@@ -97,7 +97,7 @@
   ((path :initarg :path :accessor path)))
 
 (defun group-files (lst &optional acc)
-  "Groups together files/directories/playlists in the format (path instance)"
+  "Groups together files/directories/playlists in the format: path, instance"
   (if lst
       (let ((key (car lst))
             (value (cadr lst)))
@@ -106,7 +106,7 @@
                                           (intern (concatenate 'string "MPD-"
                                                                (string key)))
                                           :path value)) acc)))
-      (reverse acc)))
+      acc))
 
 (define-mpd-command search-database () ()
   (let* ((files (group-files (database-list-all *socket* "")))
@@ -128,8 +128,8 @@
     (define-key map (kbd "P") "play")
     (define-key map (kbd "<") "previous-song")
     (define-key map (kbd ">") "next-song")
-    (define-key map (kbd "s") "stop")
+    (define-key map (kbd "S") "stop")
     (define-key map (kbd "c") "clear-songs")
-    (define-key map (kbd "S") "current-song")
+    (define-key map (kbd "s") "current-song")
     (define-key map (kbd "b") "search-database")
     map))
