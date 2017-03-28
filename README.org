@@ -1,21 +1,21 @@
-# StuMPD
-A StumpWM module for interacting with MPD
+* Stumpd
+A StumpWM module for interacting with MPD.
 
-## Installation
+** Installation
 Clone the repository and move it to your StumpWM modules folder. The modules
 folder has changed several times throughout the StumpWM releases, so the best
-way to find it is to eval `*modules-dir*` in StumpWM (C-t :).
-```
+way to find it is to eval \ast{}module-dir\ast{} in StumpWM (C-t :).
+#+BEGIN_SRC sh
 git clone https://github.com/Payphone/mpd.github
 mv mpd ~/quicklisp/local-projects/
 
 git clone https://github.com/Payphone/stumpd.git
 mv stumpd ~/.stumpwm.d/modules/
-```
+#+END_SRC
 Now update your .stumpwmrc file to include the following:
-```
+#+BEGIN_SRC common-lisp
 (load-module "stumpd")
 (use-package :stumpd)
 (define-key *root-map* (kbd "m") 'stumpd:*mpd-playback-map*)
-```
+#+END_SRC
 You can change the key binding to whatever suites your tastes.
