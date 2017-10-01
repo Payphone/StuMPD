@@ -117,6 +117,10 @@
       (mpd-directory (add-song (path selection)))
       (t (message "Abort.")))))
 
+(define-mpd-command search-playlist () ()
+  (let* ((files (group-files (playlist-song-list *socket*)))
+         (selection (second (select-from-menu (current-screen) files))))))
+
 ;; Keybindings
 
 (defvar *mpd-playback-map*
@@ -132,4 +136,5 @@
     (define-key map (kbd "c") "clear-songs")
     (define-key map (kbd "s") "current-song")
     (define-key map (kbd "b") "search-database")
+    (define-key map (kbd "l") "search-playlist")
     map))
